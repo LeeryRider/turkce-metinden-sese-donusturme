@@ -1,0 +1,10 @@
+venv/
+.clean-install-venv/
+__pycache__/
+*.py[cod]
+outputs/*.wav
+!outputs/.gitkeep
+vendor/FreyaTTS/
+.pytest_cache/
+logs/
+.cache/
