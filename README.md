@@ -114,7 +114,7 @@ ve GPU işleri için tek bir arka plan iş parçacığı kullanılır.
 | `tts_service.py` | Model yükleme, CUDA seçimi, üretim ve WAV kaydı |
 | `text_utils.py` | Metin temizleme, kelime sayma ve parçalama |
 | `tests/` | Model indirmeden çalışan birim ve API testleri |
-| `start.ps1`, `stop.ps1` | Yerel uygulamayı tek komutla açma ve kapatma |
+| `baslat.cmd`, `kapat.cmd` | Yerel uygulamayı tek komutla açma ve kapatma |
 
 ## Sistem gereksinimleri
 
@@ -164,8 +164,12 @@ cd ..
 İki uygulamayı birlikte başlatmak için:
 
 ```powershell
-.\start.ps1
+.\baslat.cmd
 ```
+
+Bu dosya PowerShell çalıştırma iznini yalnızca bu açılış için geçici olarak aşar
+ve siteyi varsayılan tarayıcıda otomatik açar. Windows güvenlik ayarını kalıcı
+olarak değiştirmez.
 
 Arayüz: `http://127.0.0.1:3000`
 
@@ -174,7 +178,7 @@ FastAPI belgeleri: `http://127.0.0.1:8000/docs`
 Uygulamayı kapatıp modeli GPU belleğinden çıkarmak için:
 
 ```powershell
-.\stop.ps1
+.\kapat.cmd
 ```
 
 İlk ses üretiminde model proje içindeki `.cache/huggingface` klasörüne indirilir.

@@ -7,11 +7,11 @@ $runDirectory = Join-Path $projectRoot ".run"
 $pidFile = Join-Path $runDirectory "app-pids.json"
 
 if (-not (Test-Path -LiteralPath $pythonPath)) {
-    throw "Python sanal ortamı bulunamadı. Önce README'deki kurulum adımlarını uygulayın."
+    throw "Python sanal ortami bulunamadi. README dosyasindaki kurulum adimlarini uygulayin."
 }
 
 if (-not (Test-Path -LiteralPath $nextCli)) {
-    throw "Frontend paketleri bulunamadı. Önce frontend klasöründe 'pnpm install' çalıştırın."
+    throw "Frontend paketleri bulunamadi. Frontend klasorunde 'pnpm install' calistirin."
 }
 
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
@@ -20,13 +20,26 @@ if ($nodeCommand) {
 } else {
     $codexNode = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
     if (-not (Test-Path -LiteralPath $codexNode)) {
-        throw "Node.js bulunamadı. Node.js 20 veya daha yeni bir sürüm kurun."
+        throw "Node.js bulunamadi. Node.js 20 veya daha yeni bir surum kurun."
     }
     $nodePath = $codexNode
 }
 
 if (Test-Path -LiteralPath $pidFile) {
-    throw "Uygulama daha önce başlatılmış görünüyor. Önce .\stop.ps1 çalıştırın."
+    $savedProcesses = Get-Content -Raw -LiteralPath $pidFile | ConvertFrom-Json
+    $runningProcess = @($savedProcesses.frontend_pid, $savedProcesses.backend_pid) |
+        Where-Object { $_ -and (Get-Process -Id $_ -ErrorAction SilentlyContinue) } |
+        Select-Object -First 1
+
+    if ($runningProcess) {
+        Write-Host "SEDA zaten calisiyor."
+        Write-Host "Arayuz: http://127.0.0.1:3000"
+        Start-Process "http://127.0.0.1:3000"
+        exit 0
+    }
+
+    # Bilgisayar beklenmeden kapandiysa eski PID dosyasi kalabilir.
+    Remove-Item -LiteralPath $pidFile -Force
 }
 
 New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
@@ -60,7 +73,8 @@ try {
 } | ConvertTo-Json | Set-Content -LiteralPath $pidFile -Encoding UTF8
 
 Start-Sleep -Seconds 2
-Write-Host "SEDA başlatıldı."
-Write-Host "Arayüz: http://127.0.0.1:3000"
+Write-Host "SEDA baslatildi."
+Write-Host "Arayuz: http://127.0.0.1:3000"
 Write-Host "API:     http://127.0.0.1:8000/docs"
-Write-Host "Kapatmak için: .\stop.ps1"
+Write-Host "Kapatmak icin: .\kapat.cmd"
+Start-Process "http://127.0.0.1:3000"

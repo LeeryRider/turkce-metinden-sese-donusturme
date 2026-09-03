@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $pidFile = Join-Path $PSScriptRoot ".run\app-pids.json"
 if (-not (Test-Path -LiteralPath $pidFile)) {
-    Write-Host "Çalışan bir SEDA süreci kaydı bulunamadı."
+    Write-Host "Calisan bir SEDA sureci bulunamadi."
     exit 0
 }
 
@@ -14,4 +14,4 @@ foreach ($processId in @($processes.frontend_pid, $processes.backend_pid)) {
 }
 
 Remove-Item -LiteralPath $pidFile -Force
-Write-Host "SEDA kapatıldı; model GPU belleğinden çıkarıldı."
+Write-Host "SEDA kapatildi; model GPU belleginden cikarildi."
