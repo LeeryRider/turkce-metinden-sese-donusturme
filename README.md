@@ -1,190 +1,292 @@
-# Türkçe Metinden Sese Dönüştürme
+# SEDA — Türkçe TTS Studio
 
-Python, Gradio ve **Chatterbox Multilingual V3** kullanarak Türkçe metinleri
-yerel bilgisayarda sese dönüştüren, NVIDIA CUDA hızlandırmalı bir staj projesi.
-Girilen metin doğrulanır, uzun metinler uygun parçalara ayrılır, parçalar sırayla
-seslendirilir ve tek bir WAV dosyasında birleştirilir.
+SEDA, Türkçe metinleri yerel bilgisayarda yapay zekâ ile seslendiren bir staj
+projesidir. Arayüz Next.js ile, API Python ve FastAPI ile hazırlanmıştır. Ses
+üretiminde Chatterbox Multilingual V3 ve NVIDIA CUDA kullanılır. Oluşturulan
+konuşmalar SQLite veritabanında saklanır.
 
-![Gradio uygulama arayüzü](docs/gradio-arayuzu.png)
+![SEDA stüdyo ekranı](docs/nextjs-studio.png)
+
+![SEDA konuşma geçmişi](docs/nextjs-history.png)
+
+## Projenin amacı
+
+İlk sürüm yalnızca metin girip WAV dosyası oluşturan bir Gradio uygulamasıydı.
+Staj projesinin yazılım geliştirme tarafını güçlendirmek için proje daha sonra
+web uygulamasına dönüştürüldü. Böylece yalnızca bir yapay zekâ modeli çalıştırmak
+yerine arayüz, REST API, veritabanı, arka plan kuyruğu ve testlerden oluşan küçük
+bir sistem geliştirildi.
+
+Bu projede TTS modeli sıfırdan eğitilmemiştir. Hazır model uygulamaya entegre
+edilmiş; metin işleme, GPU kullanımı, işlem takibi, kayıt yönetimi ve arayüz
+tarafları geliştirilmiştir.
 
 ## Özellikler
 
-- En fazla 1000 kelimelik Türkçe metin girişi
-- Yazım sırasında güncellenen kelime sayacı
-- Boş metin ve kelime sınırı doğrulaması
-- Cümleleri koruyarak 300–500 karakterlik parçalara ayırma
-- Parçalar arasına 250 milisaniye sessizlik ekleme
-- Chatterbox Multilingual V3 ile Türkçe (`tr`) ses üretimi
-- CUDA varsa otomatik GPU, yoksa CPU seçimi
-- Modeli uygulama ömrü boyunca yalnızca bir kez yükleme
-- Üretim aşamalarını arayüzde canlı gösterme
-- Tarih ve saat içeren 24 kHz mono WAV çıktısı
-- Arayüzden sesi oynatma ve indirme
+- En fazla 1000 kelimelik Türkçe metin girişi ve anlık kelime sayacı
+- Chatterbox Multilingual V3 ile 24 kHz mono WAV üretimi
+- NVIDIA CUDA ile GPU hızlandırma
+- Doğal, haber, duyuru, hikâye, eğitim ve erişilebilirlik konuşma biçimleri
+- Duygu, metne bağlılık ve yaratıcılık için gelişmiş ayarlar
+- Model yükleme, parça üretimi ve dosya kaydetme aşamalarını canlı gösterme
+- Aynı anda gelen işleri tek GPU kuyruğunda sırayla çalıştırma
+- SQLite tabanlı konuşma geçmişi
+- Geçmişte arama, favorileme, yeniden kullanma, indirme ve silme
+- Hazır metin şablonları
+- GPU, CUDA, model belleği ve üretim istatistikleri ekranı
+- Masaüstü ve mobil ekranlara uyumlu arayüz
+- Verilerin ve ses dosyalarının tamamen yerel bilgisayarda kalması
 
 ## Mimari
 
 ```text
-Kullanıcı / Gradio arayüzü (app.py)
-                 │
-                 ▼
-Metin doğrulama ve parçalama (text_utils.py)
-                 │
-                 ▼
-Model yönetimi ve ses üretimi (tts_service.py)
-                 │
-                 ▼
+Tarayıcı
+   │
+   ▼
+Next.js + React arayüzü (port 3000)
+   │  HTTP / JSON
+   ▼
+FastAPI REST API (port 8000)
+   ├── SQLite konuşma geçmişi
+   └── Tek işçili üretim kuyruğu
+          │
+          ▼
+     Metin parçalama
+          │
+          ▼
 Chatterbox V3 + PyTorch + CUDA
-                 │
-                 ▼
-      outputs/tts_TARİH_SAAT.wav
+          │
+          ▼
+      outputs/*.wav
 ```
 
-Uygulamanın arayüzü, metin işleme kodu ve model kodu ayrı dosyalarda tutulur.
-Bu ayrım her parçanın tek bir sorumluluğa sahip olmasını ve model yüklemeden
-metin fonksiyonlarının test edilebilmesini sağlar.
+Mimari özellikle anlaşılır tutulmuştur. Veritabanında ORM yerine Python'ın
+`sqlite3` modülü, canlı durum için WebSocket yerine kısa aralıklarla REST sorgusu
+ve GPU işleri için tek bir arka plan iş parçacığı kullanılır.
 
-## Dosyaların görevleri
+## Kullanılan teknolojiler
 
-| Dosya | Görevi |
+| Bölüm | Teknoloji |
 |---|---|
-| `app.py` | Gradio bileşenlerini oluşturur, dönüştürme işini başlatır ve canlı durum mesajlarını gösterir. |
-| `tts_service.py` | CUDA/CPU seçimi, modelin tembel yüklenmesi, ses üretimi, parçaların birleştirilmesi ve WAV kaydını yönetir. |
-| `text_utils.py` | Metni temizler, kelime sayısını doğrular, cümlelere ve güvenli uzunluktaki parçalara ayırır. |
-| `test_chatterbox.py` | Gerçek Chatterbox modeli ve GPU ile uçtan uca ses üretim testi yapar. |
-| `tests/` | Model indirmeden çalışan metin, servis ve canlı durum birim testlerini içerir. |
-| `requirements.txt` | Uygulama ve Chatterbox bağımlılıklarını sabitler. |
-| `requirements-cuda.txt` | CUDA 12.4 uyumlu PyTorch paketlerini ve temel gereksinimleri kurar. |
-| `outputs/` | Oluşturulan WAV dosyalarının kaydedildiği klasördür. |
+| Web arayüzü | Next.js 16, React 19, TypeScript, CSS |
+| Arka uç | Python 3.10, FastAPI, Uvicorn |
+| Veritabanı | SQLite |
+| Yapay zekâ | Chatterbox Multilingual V3 |
+| GPU | PyTorch 2.6, CUDA 12.4 |
+| Ses dosyası | NumPy, SoundFile, PCM-16 WAV |
+| Test | Python unittest, FastAPI TestClient, ESLint, TypeScript |
 
-## İşlem akışı
+## Sayfalar
 
-1. Kullanıcı Türkçe metni girer ve **Sese Dönüştür** düğmesine basar.
-2. Fazla boşluklar temizlenir; boş giriş ve 1000 kelime sınırı kontrol edilir.
-3. Metin önce `.`, `!` ve `?` işaretlerine göre cümlelere ayrılır.
-4. Cümleler, kelimeler bölünmeden en fazla 500 karakterlik parçalara dönüştürülür.
-5. Chatterbox modeli ilk istekte yüklenir ve uygulama açık kaldığı sürece bellekte tutulur.
-6. Her parça Türkçe dil kimliğiyle (`tr`) sırayla seslendirilir.
-7. Ses parçalarının arasına 250 ms sessizlik eklenir.
-8. Birleştirilen ses 24 kHz, mono, PCM-16 WAV dosyası olarak kaydedilir.
-9. Dosya Gradio oynatıcısında açılır ve indirilebilir.
+- **Stüdyo:** Metin, başlık ve konuşma biçimi seçilir; üretim durumu izlenir ve
+  sonuç dinlenir.
+- **Geçmiş:** Eski konuşmalar aranır, favorilenir, tekrar kullanılır, indirilir
+  veya silinir.
+- **Şablonlar:** Ulaşım duyurusu, haber girişi ve eğitim anlatımı gibi örnek
+  metinler stüdyoya aktarılır.
+- **Sistem:** GPU adı, CUDA durumu, model belleği, kuyruk ve yerel üretim
+  istatistikleri gösterilir.
 
-Üretim devam ederken durum alanında model yükleme, parça numarası, ses üretimi
-ve WAV kaydetme aşamaları canlı olarak gösterilir.
+## Üretim akışı
 
-## Neden Freya-TTS yerine Chatterbox?
+1. Arayüz metni ve seçilen konuşma ayarlarını API'ye gönderir.
+2. API boş metin ve 1000 kelime sınırı kontrolü yapar.
+3. İş SQLite'a `queued` durumuyla kaydedilir ve üretim kuyruğuna eklenir.
+4. Arka plan işçisi metni, kelimeleri bozmadan güvenli uzunlukta parçalara ayırır.
+5. Chatterbox modeli ilk üretimde GPU belleğine yüklenir.
+6. Parçalar Türkçe dil kimliğiyle sırayla seslendirilir ve aralarına kısa
+   sessizlik eklenir.
+7. Birleştirilen ses PCM-16 WAV olarak `outputs` klasörüne kaydedilir.
+8. Veritabanı süre ve dosya bilgileriyle güncellenir. Arayüz işlem boyunca kayıt
+   durumunu yaklaşık saniyede bir sorgular.
 
-Projenin ilk sürümünde görev tanımına uygun olarak Freya-TTS denendi. Model
-teknik olarak ses üretebilse de yapılan dinleme testlerinde Türkçe telaffuz ve
-doğallık proje için yeterli bulunmadı. Bunun üzerine Türkçe dil desteği bulunan
-Chatterbox Multilingual V3 ile karşılaştırmalı deneme yapıldı. Chatterbox çıktısı
-daha anlaşılır ve doğal bulunduğu için uygulamanın son sürümünde bu model
-kullanıldı.
+## Önemli dosyalar
 
-Bu projede model sıfırdan eğitilmemiştir. Hazır modelin çıkarım süreci uygulamaya
-entegre edilmiş; metin işleme, GPU kullanımı, çıktı birleştirme, hata yönetimi,
-arayüz ve test altyapısı geliştirilmiştir.
+| Yol | Görevi |
+|---|---|
+| `frontend/app/` | Next.js sayfaları, genel düzen ve stiller |
+| `frontend/components/` | Stüdyo, geçmiş, şablon ve sistem bileşenleri |
+| `frontend/lib/api.ts` | Arayüzün FastAPI ile yaptığı HTTP istekleri |
+| `backend/main.py` | API uçları, doğrulama ve CORS ayarları |
+| `backend/database.py` | SQLite tablo ve konuşma geçmişi işlemleri |
+| `backend/jobs.py` | Tek işçili arka plan üretim kuyruğu |
+| `backend/presets.py` | Konuşma biçimleri ve hazır metin şablonları |
+| `tts_service.py` | Model yükleme, CUDA seçimi, üretim ve WAV kaydı |
+| `text_utils.py` | Metin temizleme, kelime sayma ve parçalama |
+| `tests/` | Model indirmeden çalışan birim ve API testleri |
+| `start.ps1`, `stop.ps1` | Yerel uygulamayı tek komutla açma ve kapatma |
 
 ## Sistem gereksinimleri
 
 - Windows 10 veya 11
-- Python 3.10 (3.11 de desteklenen hedef sürümdür)
+- Python 3.10
+- Node.js 20 veya daha yeni bir sürüm
+- pnpm 11
 - Güncel NVIDIA ekran kartı sürücüsü
-- Önerilen: en az 6 GB VRAM bulunan NVIDIA GPU
-- İlk model indirmesi için yaklaşık 3 GB boş alan ve internet bağlantısı
+- Önerilen en az 6 GB NVIDIA GPU belleği
+- Model ve paketler için yaklaşık 8 GB boş disk alanı
+- İlk kurulum ve ilk model indirmesi sırasında internet bağlantısı
 
-Uygulama GPU bulunmadığında CPU cihazını seçebilir. CPU yolu kodda mevcuttur
-ancak proje RTX 3060 Laptop GPU üzerinde doğrulanmıştır; CPU üretimi belirgin
-şekilde daha yavaş olabilir.
+Kod CPU'yu da seçebilir fakat proje RTX 3060 Laptop GPU üzerinde test edilmiştir.
+CPU ile üretim belirgin biçimde daha yavaştır.
 
 ## Kurulum
 
-PowerShell'i proje klasöründe açın:
+PowerShell'i proje klasöründe açın.
+
+### 1. Python ve CUDA paketleri
 
 ```powershell
 py -3.10 -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements-cuda.txt
+.\venv\Scripts\python.exe -m pip install --upgrade pip
+.\venv\Scripts\python.exe -m pip install -r requirements-cuda.txt
 ```
 
-CUDA kurulumunu kontrol edin:
+CUDA kontrolü:
 
 ```powershell
-python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+.\venv\Scripts\python.exe -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
 ```
 
-`torch.cuda.is_available()` sonucu `True` olmalıdır. İlk model kullanımında
-Chatterbox ağırlıkları proje içindeki `.cache/huggingface` klasörüne indirilir.
-Sonraki çalıştırmalarda aynı yerel önbellek kullanılır.
+İkinci satırın `True`, üçüncü satırın NVIDIA ekran kartı adı olması beklenir.
 
-## Kullanım
+### 2. Web arayüzü paketleri
 
 ```powershell
-.\venv\Scripts\python.exe app.py
+corepack enable
+cd frontend
+pnpm install --frozen-lockfile
+cd ..
 ```
 
-Tarayıcıda `http://127.0.0.1:7860` adresini açın. Metni yazın, **Sese
-Dönüştür** düğmesine basın ve durum alanındaki aşamaları takip edin. İşlem
-tamamlandığında ses oynatılabilir veya WAV olarak indirilebilir.
+## Çalıştırma
+
+İki uygulamayı birlikte başlatmak için:
+
+```powershell
+.\start.ps1
+```
+
+Arayüz: `http://127.0.0.1:3000`
+
+FastAPI belgeleri: `http://127.0.0.1:8000/docs`
+
+Uygulamayı kapatıp modeli GPU belleğinden çıkarmak için:
+
+```powershell
+.\stop.ps1
+```
+
+İlk ses üretiminde model proje içindeki `.cache/huggingface` klasörüne indirilir.
+Daha sonraki açılışlarda aynı yerel önbellek kullanılır.
+
+### Elle geliştirme modu
+
+Gerekirse iki ayrı PowerShell penceresinde şu komutlar çalıştırılabilir:
+
+```powershell
+.\venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+```powershell
+cd frontend
+pnpm dev
+```
+
+## API özeti
+
+| Yöntem ve yol | İşlem |
+|---|---|
+| `GET /api/health` | API sağlık kontrolü |
+| `GET /api/system` | GPU, model ve istatistik bilgileri |
+| `GET /api/presets` | Konuşma biçimleri |
+| `GET /api/templates` | Hazır metin şablonları |
+| `POST /api/generations` | Yeni ses üretimini kuyruğa ekleme |
+| `GET /api/generations` | Geçmişi listeleme ve arama |
+| `GET /api/generations/{id}` | Canlı işlem durumunu alma |
+| `PATCH /api/generations/{id}/favorite` | Favori durumunu değiştirme |
+| `GET /api/generations/{id}/audio` | WAV dosyasını indirme |
+| `DELETE /api/generations/{id}` | Tamamlanmış kaydı ve WAV dosyasını silme |
 
 ## Testler
 
-Model indirmeden çalışan birim testleri:
+Python testleri gerçek modeli yüklemeden metin, servis, SQLite, API ve üretim
+kuyruğunu sınar:
 
 ```powershell
 .\venv\Scripts\python.exe -m unittest discover -s tests -v
-```
-
-Bağımlılık tutarlılığı:
-
-```powershell
 .\venv\Scripts\python.exe -m pip check
 ```
 
-Gerçek model ve GPU ile entegrasyon testi:
+Frontend kontrolleri:
+
+```powershell
+cd frontend
+pnpm lint
+pnpm build
+```
+
+Gerçek model ve GPU testi:
 
 ```powershell
 .\venv\Scripts\python.exe test_chatterbox.py
 ```
 
-Entegrasyon testi başarılı olduğunda `outputs/chatterbox_v3_test.wav` oluşur.
+3 Eylül 2026 tarihinde yapılan son kontrolde 15 Python testinin tamamı, ESLint,
+TypeScript ve Next.js üretim derlemesi geçmiştir. RTX 3060 Laptop GPU ile gerçek
+arayüzden 6,9 saniyelik örnek WAV başarıyla oluşturulmuş ve geçmişe kaydedilmiştir.
+`requirements-cuda.txt` ayrıca boş bir sanal ortama sıfırdan kurulmuş; aynı testler,
+bağımlılık kontrolü ve CUDA algılama işlemi bu temiz ortamda da geçmiştir.
 
-## Karşılaşılan sorunlar ve çözümler
+## Neden Freya yerine Chatterbox?
 
-### Türkçe ses kalitesi
+İlk denemede Freya-TTS teknik olarak ses üretti ancak Türkçe telaffuz ve doğallık
+yeterli bulunmadı. Aynı örnek metinler Chatterbox Multilingual V3 ile dinlendi.
+Chatterbox çıktısı daha anlaşılır olduğu için son sürümde bu model seçildi.
 
-Freya-TTS çalışan bir çıktı üretmesine rağmen Türkçe konuşma kalitesi yeterli
-bulunmadı. Farklı bir çok dilli model denenerek Chatterbox V3'e geçildi.
+## Neden Gradio yerine Next.js?
 
-### CUDA uyumluluğu
+Gradio, modelin çalıştığını hızlıca göstermek için yararlıydı fakat proje yalnızca
+bir metin kutusu ve düğmeden oluşuyordu. Next.js ve FastAPI ayrımıyla geçmiş,
+şablon, ayar, sistem bilgisi ve API katmanları eklenebildi. Eski Gradio sürümü Git
+geçmişinde korunur; güncel uygulamanın arayüzü Next.js'tir.
 
-PyTorch ve torchaudio paketleri aynı CUDA 12.4 sürümü için sabitlendi. Böylece
-CPU paketinin yanlışlıkla kurulması ve sürüm uyuşmazlığı önlendi.
+## Karşılaşılan sorunlar
 
-### Windows Smart App Control engeli
+### Windows Smart App Control
 
-Numba 0.67 içindeki `_typeconv` ve yeni Pydantic Core 2.46.5 içindeki
-`_pydantic_core` modülleri Windows Smart App Control tarafından engellendi.
-Windows güvenliği kapatılmadan, bu bilgisayarda çalıştığı doğrulanan Numba,
-llvmlite, Pydantic ve Pydantic Core sürümleri sabitlenerek sorun çözüldü.
+Bazı yeni Numba ve Pydantic Core derlemeleri Windows tarafından engellendi.
+Windows güvenliğini kapatmak yerine bu bilgisayarda imzası kabul edilerek çalışan
+Numba, llvmlite, Pydantic ve Pydantic Core sürümleri sabitlendi.
+
+### CUDA paket uyumu
+
+PyTorch ve torchaudio aynı CUDA 12.4 sürümünde sabitlendi. Böylece yanlışlıkla CPU
+paketi kurulması ve iki paketin sürümlerinin ayrışması önlendi.
 
 ### Model önbelleği
 
-Sistem genelindeki `HF_HOME` değişkeni uygulamanın indirilmiş modeli bulmasını
-engelleyebiliyordu. Uygulama başlangıcında önbellek yolu proje içindeki
-`.cache/huggingface` klasörüne sabitlendi.
+Farklı uygulamaların Hugging Face ayarları modelin bulunmasını etkileyebiliyordu.
+Bu proje kendi `.cache/huggingface` klasörünü kullanacak şekilde ayarlandı.
+
+### GPU'da aynı anda birden fazla iş
+
+Birden fazla üretimin aynı anda başlaması GPU belleğini aşabilir. Bu nedenle
+istekler basit bir kuyruğa alınır ve tek işçi tarafından sırayla tamamlanır.
 
 ## Bilinen sınırlamalar
 
-- Ses karakteri ve duygu ayarları arayüzde sunulmamaktadır.
-- CPU çalışma yolu otomatik seçilse de performans testi GPU üzerinde yapılmıştır.
-- Çok uzun metinlerde toplam üretim süresi parça sayısına bağlı olarak artar.
-- Uygulama yerel kullanım için tasarlanmıştır; kullanıcı hesabı veya uzak sunucu dağıtımı içermez.
+- Uygulama yerel kullanım içindir; kullanıcı hesabı ve internet yayını yoktur.
+- Tek GPU işçisi kullandığı için ikinci istek ilk isteğin bitmesini bekler.
+- SQLite tek bilgisayarlı kullanım için uygundur; çok kullanıcılı sunucu hedeflenmez.
+- Konuşma biçimleri model ayarlarını değiştirir fakat her metinde sonuç aynı ölçüde
+  belirgin olmayabilir.
+- Hazır model kullanılır; model eğitimi ve ses klonlama proje kapsamı dışındadır.
 
 ## Yapay zekâ desteğinin kapsamı
 
-Geliştirme sırasında üretken yapay zekâdan araştırma, kod önerileri, bağımlılık
-hatalarını çözme ve test fikirleri için yardım alınmıştır. Model seçimi, seslerin
-dinlenerek değerlendirilmesi, gereksinimlerin belirlenmesi ve uygulamanın yerel
-GPU üzerinde doğrulanması proje geliştirme sürecinin parçasıdır. Kullanılan hazır
-TTS modeli ayrıca açıkça belirtilmiş, modelin sıfırdan eğitildiği iddia edilmemiştir.
+Geliştirme sırasında üretken yapay zekâdan araştırma, kod önerileri, hata çözme ve
+test senaryoları hazırlama konularında yardım alınmıştır. Gereksinimlerin seçilmesi,
+seslerin dinlenerek değerlendirilmesi, model değişikliği kararı ve yerel bilgisayar
+üzerindeki doğrulamalar proje çalışmasının parçasıdır. Sunumda hazır Chatterbox
+modeli kullanıldığı ve modelin sıfırdan eğitilmediği açıkça belirtilmelidir.

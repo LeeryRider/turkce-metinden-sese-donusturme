@@ -23,6 +23,9 @@ MODEL_VERSION = "v3"
 LANGUAGE_ID = "tr"
 SAMPLE_RATE = 24_000
 DEFAULT_SILENCE_MS = 250
+DEFAULT_EXAGGERATION = 0.5
+DEFAULT_CFG_WEIGHT = 0.5
+DEFAULT_TEMPERATURE = 0.8
 StatusCallback = Callable[[str], None]
 
 
@@ -43,6 +46,11 @@ class TTSService:
         self._synthesis_lock = Lock()
         self._status_callback = status_callback
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    @property
+    def is_model_loaded(self) -> bool:
+        """Modelin bu süreçte belleğe yüklenip yüklenmediğini döndürür."""
+        return self._model is not None
 
     def _report_status(
         self,
@@ -104,6 +112,10 @@ class TTSService:
         self,
         text: str,
         status_callback: StatusCallback | None = None,
+        *,
+        exaggeration: float = DEFAULT_EXAGGERATION,
+        cfg_weight: float = DEFAULT_CFG_WEIGHT,
+        temperature: float = DEFAULT_TEMPERATURE,
     ) -> np.ndarray:
         """Bir Türkçe metin parçasını tek kanallı ses dizisine dönüştürür."""
         cleaned_text = text.strip()
@@ -117,6 +129,9 @@ class TTSService:
                 waveform = self._model.generate(
                     cleaned_text,
                     language_id=LANGUAGE_ID,
+                    exaggeration=exaggeration,
+                    cfg_weight=cfg_weight,
+                    temperature=temperature,
                 )
         except torch.cuda.OutOfMemoryError as error:
             torch.cuda.empty_cache()
@@ -136,6 +151,10 @@ class TTSService:
         chunks: Sequence[str],
         silence_ms: int = DEFAULT_SILENCE_MS,
         status_callback: StatusCallback | None = None,
+        *,
+        exaggeration: float = DEFAULT_EXAGGERATION,
+        cfg_weight: float = DEFAULT_CFG_WEIGHT,
+        temperature: float = DEFAULT_TEMPERATURE,
     ) -> np.ndarray:
         """Metin parçalarını sırayla üretir ve aralarına sessizlik ekler."""
         if not chunks:
@@ -151,7 +170,15 @@ class TTSService:
                 f"Ses parçası {index}/{len(chunks)} üretiliyor...",
                 status_callback,
             )
-            audio_parts.append(self.synthesize(chunk, status_callback))
+            audio_parts.append(
+                self.synthesize(
+                    chunk,
+                    status_callback,
+                    exaggeration=exaggeration,
+                    cfg_weight=cfg_weight,
+                    temperature=temperature,
+                )
+            )
             if index < len(chunks) and silence.size:
                 audio_parts.append(silence)
 

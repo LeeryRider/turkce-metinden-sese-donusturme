@@ -4,7 +4,16 @@ __pycache__/
 *.py[cod]
 outputs/*.wav
 !outputs/.gitkeep
+data/*.db
+data/*.db-shm
+data/*.db-wal
+!data/.gitkeep
 vendor/FreyaTTS/
 .pytest_cache/
 logs/
 .cache/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+.pnpm-store/
+.run/

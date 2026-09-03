@@ -1,10 +1,12 @@
 # V3 desteği içeren resmî Chatterbox kaynak sürümü.
 chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@5de7a54aa4e5e2baadb0182dde554908b48b85c2
 
-# Uygulamanın doğrudan kullandığı paketler.
+# Uygulamanın ve Chatterbox'ın kullandığı sabit paketler.
 gradio==6.8.0
 numpy==1.26.4
 soundfile==0.14.0
+fastapi==0.141.1
+uvicorn==0.52.4
 
 # Yeni Windows derlemeleri Smart App Control itibar denetimine takılabildiği
 # için bu bilgisayarda çalıştığı doğrulanan Pydantic ikilisi kullanılır.
